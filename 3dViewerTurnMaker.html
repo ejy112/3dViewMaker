@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review 3D Viewer and Turn Maker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { display: flex; height: 100vh; background: #0f172a; color: #f8fafc; overflow: hidden; }
+    
+    #sidebar {
+      width: 320px;
+      min-width: 250px;
+      flex-shrink: 0;
+      background: #1e293b;
+      border-right: 1px solid #334155;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    .section-title { font-size: 0.8rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+
+    .upload-box {
+      border: 2px dashed #475569;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      cursor: pointer;
+      background: #0f172a;
+      transition: border-color 0.2s;
+      font-size: 0.9rem;
+    }
+    .upload-box:hover { border-color: #38bdf8; }
+    input[type="file"] { display: none; }
+
+    .panel {
+      background: #0f172a;
+      padding: 14px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border: 1px solid #334155;
+      position: relative;
+    }
+
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+    .control-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; }
+
+    input[type="range"] { width: 100%; accent-color: #38bdf8; cursor: pointer; }
+    
+    select, input[type="number"] { 
+      padding: 6px 8px; 
+      background: #1e293b; 
+      color: white; 
+      border: 1px solid #475569; 
+      border-radius: 6px; 
+      font-size: 0.85rem;
+      width: 100%;
+    }
+
+    /* Fixed Input Box Width & Blender Drag Styling */
+    input[type="text"].dim-input,
+    input[type="number"].dim-input { 
+      font-family: monospace; 
+      font-weight: bold; 
+      color: #38bdf8; 
+      width: 100px; 
+      text-align: right; 
+      cursor: ew-resize;
+      background: #1e293b; 
+      border: 1px solid #475569; 
+      border-radius: 6px; 
+      padding: 6px 8px;
+    }
+    input[type="text"].dim-input { cursor: text; text-align: center; }
+
+    /* Accordion Styling */
+    .accordion-btn {
+      width: 100%;
+      text-align: left;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #38bdf8;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .accordion-btn:hover { background: #334155; }
+    .accordion-content {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      background: #162032;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px dashed #334155;
+    }
+
+    .btn-grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .btn-full { grid-column: span 2; width: 100%; }
+    
+    button {
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: #334155;
+      color: white;
+      transition: background 0.2s;
+    }
+    button:hover { background: #475569; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-recenter { background: #0284c7; color: white; }
+    .btn-turntable { background: #334155; color: white; }
+    .btn-turntable.active { background: #059669; color: white; }
+    .btn-export { background: #059669; color: white; font-size: 0.85rem; }
+    .btn-export:hover { background: #10b981; }
+    .btn-video-mp4 { background: #0284c7; color: white; padding: 9px 4px; font-size: 0.78rem; text-align: center; }
+    .btn-video-mp4:hover { background: #0369a1; }
+    .btn-video-webm { background: #0284c7; color: white; padding: 9px 4px; font-size: 0.78rem; text-align: center; }
+    .btn-video-webm:hover { background: #0369a1; }
+    .btn-fullscreen { background: #475569; color: white; padding: 10px; font-size: 0.85rem; width: 100%; }
+    .btn-fullscreen:hover { background: #64748b; }
+
+    /* Viewport Layout */
+    #viewport { 
+      flex: 1; 
+      position: relative; 
+      background: #1e293b; 
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #canvas3d { 
+      position: absolute; 
+      top: 0; 
+      left: 0; 
+      width: 100%; 
+      height: 100%; 
+      display: block; 
+    }
+    
+    .empty-dropzone {
+      position: relative;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      background: rgba(30, 41, 59, 0.85);
+      border: 2px dashed #475569;
+      padding: 36px 48px;
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s ease;
+      text-align: center;
+      color: #94a3b8;
+    }
+    .empty-dropzone.drag-active {
+      border-color: #38bdf8;
+      background: rgba(30, 41, 59, 0.95);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.3);
+      color: #38bdf8;
+    }
+    .btn-primary-upload {
+      background: #0284c7;
+      color: white;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      border: none;
+      transition: background 0.2s;
+    }
+    .btn-primary-upload:hover { background: #0369a1; }
+
+    .info-note {
+      font-size: 0.72rem;
+      color: #38bdf8;
+      line-height: 1.2;
+      display: none;
+    }
+
+    .warning-note {
+      display: none;
+      color: #fbbf24;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid #f59e0b;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      line-height: 1.3;
+      margin-top: 4px;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <div id="sidebar">
+    <label class="upload-box">
+      <span>Upload <b>.GLB</b>, <b>.STL</b> or <b>.OBJ</b></span>
+      <input type="file" id="fileInput" accept=".glb,.stl,.obj">
+    </label>
+
+    <!-- Viewer Panel -->
+    <div class="panel">
+      <div class="section-title">
+        <span>VIEWER</span>
+      </div>
+      <!-- Camera Framing Buttons -->
+      <div class="btn-grid-4">
+        <button id="btnRecenter" class="btn-full btn-recenter">Fit to View (Enter)</button>
+        <button id="btnTurntable" class="btn-full btn-turntable">Turntable: OFF (Spacebar)</button>
+        <button id="btnFront">Front (1)</button>
+        <button id="btnBack">Back (2)</button>
+        <button id="btnLeft">Left (3)</button>
+        <button id="btnRight">Right (4)</button>
+        <button id="btnTop">Top (5)</button>
+        <button id="btnBottom">Bottom (6)</button>
+        <button id="btnIsoFL">3/4 Front-L (7)</button>
+        <button id="btnIsoFR">3/4 Front-R (8)</button>
+      </div>
+    </div>
+
+    <!-- Export Panel -->
+    <div class="panel">
+      <div class="section-title">Export</div>
+      
+      <!-- Side-by-Side Resolution and Image Export -->
+      <div class="control-group">
+        <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Resolution</span>
+        <div class="control-row" style="gap: 8px;">
+          <select id="exportResSelect" style="width: 50px; flex-shrink: 0; padding: 8px 4px; font-weight: bold;">
+            <option value="1">1k</option>
+            <option value="2">2k</option>
+            <option value="3">3k</option>
+            <option value="4">4k</option>
+          </select>
+          <button id="btnExportTurns" class="btn-export" style="flex-grow: 1; padding: 8px;">Export Turns to Image (S)</button>
+        </div>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #334155; margin: 4px 0;">
+
+      <!-- Side-by-Side Video Export Options -->
+      <div class="btn-grid-4">
+        <button id="btnExportMp4" class="btn-video-mp4">Export MP4 (V)</button>
+        <button id="btnExportWebm" class="btn-video-webm">Export WebM (W)</button>
+      </div>
+    </div>
+
+    <!-- Settings Panel (Accordion) -->
+    <div class="panel" style="padding: 10px 14px;">
+      <button class="accordion-btn" id="settingsToggleBtn" style="margin-top: 0; font-size: 0.85rem; padding: 4px 0; background: transparent; border: none;">
+        <span>SETTINGS</span>
+        <span id="settingsIcon">▼</span>
+      </button>
+      
+      <div class="accordion-content" id="settingsContent" style="display: none; background: transparent; border: none; padding: 8px 0 0 0;">
+        
+        <!-- LookDev Material Selection -->
+        <select id="materialSelect">
+          <option value="original">Original Material</option>
+          <option value="grey" selected>Grey Clay (50% Roughness)</option>
+          <option value="gold">Reflective Metal (Gold)</option>
+        </select>
+
+        <!-- Orthographic View Toggle -->
+        <label class="control-row" style="cursor: pointer; margin-top: 4px;">
+          <span>Orthographic View (O)</span>
+          <input type="checkbox" id="orthoToggle" checked>
+        </label>
+
+        <!-- Focal Length Slider -->
+        <div class="control-group" id="focalContainer" style="display: none;">
+          <div class="control-row">
+            <span>Focal Length</span>
+            <span id="focalVal">50mm</span>
+          </div>
+          <input type="range" id="focalSlider" min="50" max="300" value="50">
+        </div>
+
+        <!-- Grid Toggle -->
+        <div class="control-group">
+          <label class="control-row" style="cursor: pointer;">
+            <span>Show Scale Grid (G)</span>
+            <input type="checkbox" id="gridToggle">
+          </label>
+          
+          <div class="control-row" id="gridSizeRow" style="margin-top: 4px; display: none;">
+            <span>Grid Square Size (in):</span>
+            <input type="number" id="gridSizeInput" value="0.125" step="0.0625" min="0.001" class="dim-input">
+          </div>
+
+          <div class="info-note" id="gridNote">
+            * Grid measurement is true to scale in <b>Orthographic View</b>.
+          </div>
+        </div>
+
+        <!-- Cast Shadows Toggle -->
+        <div class="control-group">
+          <label class="control-row" style="cursor: pointer;">
+            <span>Cast Shadows (C)</span>
+            <input type="checkbox" id="shadowToggle">
+          </label>
+        </div>
+
+        <!-- Lock Lights Toggle -->
+        <label class="control-row" style="cursor: pointer;">
+          <span>Lock Lights to Camera (L)</span>
+          <input type="checkbox" id="lockLightsToggle" checked>
+        </label>
+
+        <!-- Contrast Slider -->
+        <div class="control-group">
+          <div class="control-row">
+            <span>Contrast</span>
+            <span id="contrastVal">100%</span>
+          </div>
+          <input type="range" id="contrastSlider" min="50" max="250" value="100">
+        </div>
+
+        <!-- Background Color Native Picker -->
+        <div class="control-group">
+          <div class="control-row">
+            <span>Background Color</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <input type="color" id="nativeColorPicker" value="#1e293b" title="Click to change color" style="width: 28px; height: 26px; padding: 0; border: 1px solid #475569; border-radius: 4px; cursor: pointer; background: transparent;">
+              <input type="text" id="pickerHexInput" class="dim-input" value="#1E293B">
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Vignette Toggle & Settings -->
+        <div class="control-group" style="border-top: 1px solid #334155; padding-top: 8px;">
+          <label class="control-row" style="cursor: pointer;">
+            <span>Vignette Effect</span>
+            <input type="checkbox" id="vignetteToggle">
+          </label>
+          
+          <div id="vignetteSettings" style="display: none; flex-direction: column; gap: 8px; margin-top: 6px; padding-left: 8px; border-left: 2px solid #475569;">
+            <div class="control-row">
+              <span style="font-size: 0.75rem; color: #94a3b8;">Vignette Color</span>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="color" id="vignetteColor" value="#000000" style="width: 20px; height: 20px; padding: 0; border: 1px solid #475569; border-radius: 4px; cursor: pointer; background: transparent;">
+                <input type="text" id="vignetteHex" class="dim-input" style="width: 70px; padding: 3px 6px; font-size: 0.75rem;" value="#000000">
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-row" style="font-size: 0.75rem; color: #94a3b8;">
+                <span>Intensity</span>
+                <span id="vignetteIntVal">50%</span>
+              </div>
+              <input type="range" id="vignetteIntensity" min="0" max="100" value="50">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Scale, Size & Rotation Panel Wrapper -->
+        <div id="dimWrapper" style="display: none; flex-direction: column; gap: 10px;">
+          <hr style="border: 0; border-top: 1px solid #334155; margin: 4px 0;">
+          <div class="section-title" style="margin-bottom: 0;">Scale/Rotation</div>
+          
+          <div class="control-row">
+            <span>Scale Factor:</span>
+            <input type="number" id="scaleInput" value="1.000" step="0.05" min="0.001" class="dim-input">
+          </div>
+          <div class="control-row">
+            <span>X (Width in.):</span>
+            <input type="number" id="dimInputX" step="0.01" class="dim-input">
+          </div>
+          <div class="control-row">
+            <span>Y (Height in.):</span>
+            <input type="number" id="dimInputY" step="0.01" class="dim-input">
+          </div>
+          <div class="control-row">
+            <span>Z (Depth in.):</span>
+            <input type="number" id="dimInputZ" step="0.01" class="dim-input">
+          </div>
+          <div class="control-row">
+            <span>Rotation X (°):</span>
+            <input type="number" id="rotInputX" value="0" step="1" class="dim-input">
+          </div>
+          <div class="control-row">
+            <span>Rotation Y (°):</span>
+            <input type="number" id="rotInputY" value="0" step="1" class="dim-input">
+          </div>
+          <div class="control-row">
+            <span>Rotation Z (°):</span>
+            <input type="number" id="rotInputZ" value="0" step="1" class="dim-input">
+          </div>
+          
+          <div id="rotWarning" class="warning-note">
+            NOTE: the size noted above is based on original input only, not the rotated value!
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Fullscreen Toggle Button at Bottom -->
+    <button id="btnFullscreenToggle" class="btn-fullscreen">Fullscreen Toggle (F/Esc)</button>
+    
+    <!-- Logo -->
+    <img src="https://cdn.cookielaw.org/logos/fe328015-5ba0-440b-96be-399813ddce55/019ed71b-fe3a-7d09-ab6f-ebb2d6233a0f/8d2a10ff-d963-41d9-8439-7c3ebbbaa2d5/jazwares-logo-squared.png" alt="Jazwares Logo" style="display: block; margin: 10px auto 0 auto; max-width: 100%; height: auto;">
+    
+  </div>
+
+  <div id="viewport">
+    
+    <!-- Visual Loading Overlay -->
+    <div id="loadingOverlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.85); z-index: 20; justify-content: center; align-items: center; flex-direction: column; backdrop-filter: blur(4px);">
+      <div style="width: 48px; height: 48px; border: 4px solid #334155; border-top: 4px solid #38bdf8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <div id="loadingText" style="margin-top: 16px; color: #38bdf8; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px;">Loading Model...</div>
+      <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+    </div>
+
+    <div id="emptyDropzone" class="empty-dropzone">
+      <div id="statusText">Select a 3D file or drag & drop here</div>
+      <button id="btnViewportUpload" class="btn-primary-upload">Select 3D File (.GLB, .STL, .OBJ)</button>
+    </div>
+    
+    <canvas id="canvas3d"></canvas>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { ViewHelper } from 'three/addons/helpers/ViewHelper.js';
+
+    const viewport = document.getElementById('viewport');
+    const sidebar = document.getElementById('sidebar');
+    const canvas = document.getElementById('canvas3d');
+    const emptyDropzone = document.getElementById('emptyDropzone');
+    const statusText = document.getElementById('statusText');
+    const fileInput = document.getElementById('fileInput');
+
+    document.getElementById('btnViewportUpload').onclick = () => fileInput.click();
+    
+    // Centralized Application State Management
+    let currentModel = null;
+    let gridHelper = null;
+    let selectedMaterialKey = 'grey'; 
+    let unscaledModelSize = new THREE.Vector3(1, 1, 1);
+    let unscaledCenter = new THREE.Vector3(0, 0, 0); 
+    let currentScaleFactor = 1.0;
+    let modelRadius = 1;
+    let loadedFileName = "model";
+    let isTurntableActive = false;
+    let isRecordingVideo = false;
+    let isExportingImages = false; 
+    let needsRender = true; 
+    let currentBgColor = new THREE.Color(0x1e293b);
+    let vignetteEnabled = false;
+
+    function requestRender() { needsRender = true; }
+
+    let isFullscreenMode = false;
+    function setFullscreenMode(enable) {
+      isFullscreenMode = enable;
+      sidebar.style.display = isFullscreenMode ? 'none' : 'flex';
+      handleResize();
+      if (currentModel) recenterView();
+    }
+
+    document.getElementById('btnFullscreenToggle').onclick = () => setFullscreenMode(!isFullscreenMode);
+
+    // Scene & Renderer Setup
+    const scene = new THREE.Scene();
+    scene.background = currentBgColor;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, alpha: true });
+    renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
+    // Explicitly set autoClear to false for ViewHelper Gizmo & Vignette Post-Pass
+    renderer.autoClear = false;
+    
+    // Enable soft self-shadowing 
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmremGenerator.fromScene(new RoomEnvironment()).texture;
+
+    // Cameras
+    const aspect = viewport.clientWidth / viewport.clientHeight;
+    const cameraPersp = new THREE.PerspectiveCamera(45, aspect, 0.01, 10000);
+    cameraPersp.setFocalLength(50);
+    
+    const cameraOrtho = new THREE.OrthographicCamera(-5 * aspect, 5 * aspect, 5, -5, 0.01, 10000);
+    let activeCamera = cameraOrtho;
+    activeCamera.position.set(0, 0, 10);
+
+    const controls = new OrbitControls(activeCamera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.addEventListener('change', requestRender);
+
+    const viewHelper = new ViewHelper(activeCamera, renderer.domElement);
+    canvas.addEventListener('pointerdown', (event) => {
+        viewHelper.handleClick(event);
+        requestRender();
+    });
+
+    // Custom WebGL Vignette Scene Pass
+    const vignetteScene = new THREE.Scene();
+    const vignetteCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const vignetteMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+            color: { value: new THREE.Color(0x000000) },
+            intensity: { value: 0.5 }
+        },
+        vertexShader: `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 color;
+            uniform float intensity;
+            varying vec2 vUv;
+            void main() {
+                vec2 uv = (vUv - 0.5) * 2.0;
+                float dist = length(uv);
+                float alpha = smoothstep(0.3, 1.2, dist) * intensity;
+                gl_FragColor = vec4(color, alpha);
+            }
+        `,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false
+    });
+    const vignetteQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), vignetteMaterial);
+    vignetteScene.add(vignetteQuad);
+
+    // Vignette Events
+    document.getElementById('vignetteToggle').addEventListener('change', (e) => {
+        vignetteEnabled = e.target.checked;
+        document.getElementById('vignetteSettings').style.display = vignetteEnabled ? 'flex' : 'none';
+        requestRender();
+    });
+    
+    document.getElementById('vignetteIntensity').addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        document.getElementById('vignetteIntVal').innerText = val + '%';
+        vignetteMaterial.uniforms.intensity.value = val / 100;
+        requestRender();
+    });
+
+    const vigColor = document.getElementById('vignetteColor');
+    const vigHex = document.getElementById('vignetteHex');
+    
+    function updateVigColor(hex) {
+        if (/^#[0-9A-F]{6}$/i.test(hex)) {
+            vignetteMaterial.uniforms.color.value.set(hex);
+            vigColor.value = hex;
+            vigHex.value = hex.toUpperCase();
+            requestRender();
+        }
+    }
+    
+    vigColor.addEventListener('input', e => updateVigColor(e.target.value));
+    vigHex.addEventListener('change', e => {
+        let hex = e.target.value.trim();
+        if (!hex.startsWith('#')) hex = '#' + hex;
+        updateVigColor(hex);
+    });
+
+    // Lighting (Now cast shadows if enabled)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.5);
+    dirLight1.castShadow = false; // Off by default
+    dirLight1.shadow.mapSize.width = 2048;
+    dirLight1.shadow.mapSize.height = 2048;
+    dirLight1.shadow.bias = -0.0005;
+    scene.add(dirLight1);
+    scene.add(dirLight1.target);
+
+    const dirLight2 = new THREE.DirectionalLight(0xffffff, 1.0);
+    scene.add(dirLight2);
+    scene.add(dirLight2.target);
+
+    // Settings Accordion Toggle
+    const settingsBtn = document.getElementById('settingsToggleBtn');
+    const settingsContent = document.getElementById('settingsContent');
+    const settingsIcon = document.getElementById('settingsIcon');
+    settingsBtn.addEventListener('click', () => {
+      const isHidden = settingsContent.style.display === 'none' || settingsContent.style.display === '';
+      settingsContent.style.display = isHidden ? 'flex' : 'none';
+      settingsIcon.innerText = isHidden ? '▲' : '▼';
+    });
+
+    // Native Color Picker integration
+    const nativeColorPicker = document.getElementById('nativeColorPicker');
+    const pickerHexInput = document.getElementById('pickerHexInput');
+
+    function updateBackgroundColor(hex) {
+      if (/^#[0-9A-F]{6}$/i.test(hex)) {
+        currentBgColor.set(hex);
+        scene.background = currentBgColor;
+        viewport.style.background = hex;
+        nativeColorPicker.value = hex;
+        pickerHexInput.value = hex.toUpperCase();
+        requestRender();
+      }
+    }
+
+    nativeColorPicker.addEventListener('input', (e) => updateBackgroundColor(e.target.value));
+    pickerHexInput.addEventListener('change', (e) => {
+      let hex = e.target.value.trim();
+      if (!hex.startsWith('#')) hex = '#' + hex;
+      updateBackgroundColor(hex);
+    });
+
+    // Shadows Toggle
+    document.getElementById('shadowToggle').addEventListener('change', (e) => {
+      const enabled = e.target.checked;
+      dirLight1.castShadow = enabled;
+      if (currentModel) {
+        currentModel.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = enabled;
+            child.receiveShadow = enabled;
+            if (child.material) child.material.needsUpdate = true;
+          }
+        });
+      }
+      requestRender();
+    });
+
+    // Dynamic Lights with Shadow Sync
+    function updateLights(cam) {
+      const isCameraLocked = document.getElementById('lockLightsToggle').checked;
+      cam.updateMatrixWorld(true);
+      const rad = modelRadius || 1;
+
+      if (isCameraLocked) {
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+
+        const target = controls.target;
+        const keyPos = target.clone().addScaledVector(forward, -rad * 3.5).addScaledVector(right, rad * 2.0).addScaledVector(up, rad * 2.5);
+        const fillPos = target.clone().addScaledVector(forward, -rad * 3.5).addScaledVector(right, -rad * 2.0).addScaledVector(up, -rad * 1.5);
+
+        dirLight1.position.copy(keyPos);
+        dirLight2.position.copy(fillPos);
+        dirLight1.target.position.copy(target);
+        dirLight2.target.position.copy(target);
+      } else {
+        dirLight1.position.set(rad * 3.0, rad * 5.0, rad * 4.0);
+        dirLight2.position.set(-rad * 3.0, -rad * 3.0, -rad * 3.0);
+        dirLight1.target.position.set(0, 0, 0);
+        dirLight2.target.position.set(0, 0, 0);
+      }
+
+      // Synchronize shadow map boundary cleanly
+      const shadowDist = rad * 1.5;
+      dirLight1.shadow.camera.left = -shadowDist;
+      dirLight1.shadow.camera.right = shadowDist;
+      dirLight1.shadow.camera.top = shadowDist;
+      dirLight1.shadow.camera.bottom = -shadowDist;
+      dirLight1.shadow.camera.near = 0.1;
+      dirLight1.shadow.camera.far = rad * 10;
+      dirLight1.shadow.camera.updateProjectionMatrix();
+
+      dirLight1.target.updateMatrixWorld();
+      dirLight2.target.updateMatrixWorld();
+    }
+
+    const materials = {
+      grey: new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.5, metalness: 0.1 }),
+      gold: new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.15, metalness: 1.0 })
+    };
+
+    // UI Listeners
+    const btnTurntable = document.getElementById('btnTurntable');
+    btnTurntable.addEventListener('click', () => {
+      isTurntableActive = !isTurntableActive;
+      if (isTurntableActive) {
+        btnTurntable.innerText = "Turntable: ON (Spacebar)";
+        btnTurntable.classList.add('active');
+        requestRender();
+      } else {
+        btnTurntable.innerText = "Turntable: OFF (Spacebar)";
+        btnTurntable.classList.remove('active');
+      }
+    });
+
+    const contrastSlider = document.getElementById('contrastSlider');
+    const contrastVal = document.getElementById('contrastVal');
+    contrastSlider.addEventListener('input', () => {
+      const val = parseFloat(contrastSlider.value);
+      contrastVal.innerText = `${val}%`;
+      const factor = val / 100;
+      ambientLight.intensity = 1.2 / (factor * factor);
+      dirLight1.intensity = 2.5 * factor;
+      dirLight2.intensity = 1.0 * factor;
+      requestRender();
+    });
+
+    const gridToggle = document.getElementById('gridToggle');
+    const gridSizeRow = document.getElementById('gridSizeRow');
+    const gridSizeInput = document.getElementById('gridSizeInput');
+    gridToggle.addEventListener('change', () => {
+      gridSizeRow.style.display = gridToggle.checked ? 'flex' : 'none';
+      updateGrid();
+    });
+    gridSizeInput.addEventListener('input', updateGrid);
+
+    function recalculateBounds() {
+      if (!currentModel) return;
+      const box = new THREE.Box3().setFromObject(currentModel);
+      const sphere = new THREE.Sphere();
+      box.getBoundingSphere(sphere);
+      modelRadius = sphere.radius || 1;
+    }
+
+    function updateModelTransform() {
+      if (!currentModel) return;
+      currentModel.scale.set(currentScaleFactor, currentScaleFactor, currentScaleFactor);
+      
+      const rotX = parseFloat(document.getElementById('rotInputX').value) || 0;
+      const rotY = parseFloat(document.getElementById('rotInputY').value) || 0;
+      const rotZ = parseFloat(document.getElementById('rotInputZ').value) || 0;
+
+      currentModel.rotation.x = THREE.MathUtils.degToRad(rotX);
+      currentModel.rotation.y = THREE.MathUtils.degToRad(rotY);
+      currentModel.rotation.z = THREE.MathUtils.degToRad(rotZ);
+
+      const offset = unscaledCenter.clone().applyEuler(currentModel.rotation).multiplyScalar(-currentScaleFactor);
+      currentModel.position.copy(offset);
+      currentModel.updateMatrixWorld(true);
+
+      recalculateBounds();
+      requestRender();
+    }
+
+    // EXPLICIT MEMORY CLEANUP
+    function cleanupScene() {
+      if (currentModel) {
+        scene.remove(currentModel);
+        currentModel.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.userData.originalMaterial) {
+               if (Array.isArray(child.userData.originalMaterial)) {
+                 child.userData.originalMaterial.forEach(m => m.dispose());
+               } else {
+                 child.userData.originalMaterial.dispose();
+               }
+            }
+          }
+        });
+        currentModel = null;
+      }
+    }
+
+    // Drag and Drop
+    ['dragenter', 'dragover'].forEach(evt => viewport.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); emptyDropzone.classList.add('drag-active'); }, false));
+    ['dragleave', 'drop'].forEach(evt => viewport.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); emptyDropzone.classList.remove('drag-active'); }, false));
+    viewport.addEventListener('drop', (e) => { if (e.dataTransfer.files && e.dataTransfer.files.length > 0) processSelectedFile(e.dataTransfer.files[0]); });
+    fileInput.addEventListener('change', (e) => { if (e.target.files && e.target.files.length > 0) processSelectedFile(e.target.files[0]); });
+
+    function processSelectedFile(file) {
+      if (!file) return;
+
+      loadedFileName = file.name;
+      emptyDropzone.style.display = 'none';
+      
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const loadingText = document.getElementById('loadingText');
+      loadingOverlay.style.display = 'flex';
+      loadingText.innerText = `Parsing ${file.name}...`;
+
+      // Free thread to render the overlay spinner immediately before heavy blocking operations
+      setTimeout(() => {
+          const filename = file.name.toLowerCase();
+          const reader = new FileReader();
+
+          reader.onload = function (event) {
+            const contents = event.target.result;
+            cleanupScene(); // clear GPU memory
+
+            try {
+              if (filename.endsWith('.stl')) {
+                const loader = new STLLoader();
+                const geometry = loader.parse(contents);
+                geometry.computeVertexNormals();
+                geometry.center();
+                currentModel = new THREE.Mesh(geometry, materials[selectedMaterialKey]);
+                scene.add(currentModel);
+                onModelLoaded(file.name);
+              } else if (filename.endsWith('.glb') || filename.endsWith('.gltf')) {
+                const loader = new GLTFLoader();
+                loader.parse(contents, '', (gltf) => {
+                  currentModel = gltf.scene;
+                  // Store Original Materials natively
+                  currentModel.traverse(child => { if (child.isMesh) child.userData.originalMaterial = child.material; });
+                  applySelectedMaterial();
+                  scene.add(currentModel);
+                  onModelLoaded(file.name);
+                });
+              } else if (filename.endsWith('.obj')) {
+                const loader = new OBJLoader();
+                const obj = loader.parse(contents);
+                obj.traverse((child) => { if (child.isMesh && child.geometry && !child.geometry.attributes.normal) child.geometry.computeVertexNormals(); });
+                currentModel = obj;
+                currentModel.traverse(child => { if (child.isMesh) child.userData.originalMaterial = child.material; });
+                applySelectedMaterial();
+                scene.add(currentModel);
+                onModelLoaded(file.name);
+              }
+            } catch (err) {
+              loadingText.innerText = "Error reading 3D file structure.";
+              setTimeout(() => loadingOverlay.style.display = 'none', 3000);
+            }
+          };
+
+          if (filename.endsWith('.obj')) reader.readAsText(file);
+          else reader.readAsArrayBuffer(file);
+      }, 50);
+    }
+
+    function onModelLoaded(name) {
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('dimWrapper').style.display = 'flex';
+      
+      currentScaleFactor = 1.0;
+      document.getElementById('scaleInput').value = "1.000";
+      document.getElementById('rotInputX').value = "0";
+      document.getElementById('rotInputY').value = "0";
+      document.getElementById('rotInputZ').value = "0";
+      document.getElementById('rotWarning').style.display = 'none';
+
+      if (currentModel) {
+        currentModel.position.set(0, 0, 0);
+        currentModel.rotation.set(0, 0, 0);
+        currentModel.scale.set(1, 1, 1);
+        currentModel.updateMatrixWorld(true);
+
+        const box = new THREE.Box3().setFromObject(currentModel);
+        box.getCenter(unscaledCenter);
+        box.getSize(unscaledModelSize);
+      }
+
+      updateModelTransform();
+      updateModelScale(1.0, 'init');
+      recenterView();
+    }
+
+    function applySelectedMaterial() {
+      if (!currentModel) return;
+      const shadowsEnabled = document.getElementById('shadowToggle').checked;
+      currentModel.traverse((child) => {
+        if (child.isMesh) {
+          if (selectedMaterialKey === 'original') {
+             if (child.userData.originalMaterial) child.material = child.userData.originalMaterial;
+          } else {
+             child.material = materials[selectedMaterialKey];
+          }
+          child.castShadow = shadowsEnabled;
+          child.receiveShadow = shadowsEnabled;
+          if (child.material) child.material.needsUpdate = true;
+        }
+      });
+      requestRender();
+    }
+
+    function getConversionToInches() { return 1 / 25.4; }
+
+    function updateModelScale(newScale, sourceField) {
+      if (!currentModel || newScale <= 0 || isNaN(newScale)) return;
+      currentScaleFactor = newScale;
+
+      const scaleInches = getConversionToInches();
+      if (sourceField !== 'scale') document.getElementById('scaleInput').value = currentScaleFactor.toFixed(3);
+      if (sourceField !== 'X') document.getElementById('dimInputX').value = (unscaledModelSize.x * scaleInches * currentScaleFactor).toFixed(3);
+      if (sourceField !== 'Y') document.getElementById('dimInputY').value = (unscaledModelSize.y * scaleInches * currentScaleFactor).toFixed(3);
+      if (sourceField !== 'Z') document.getElementById('dimInputZ').value = (unscaledModelSize.z * scaleInches * currentScaleFactor).toFixed(3);
+
+      updateModelTransform();
+      recenterView();
+      updateGrid();
+    }
+
+    function updateModelRotation() {
+      const rotWarning = document.getElementById('rotWarning');
+      const x = parseFloat(document.getElementById('rotInputX').value) || 0;
+      const y = parseFloat(document.getElementById('rotInputY').value) || 0;
+      const z = parseFloat(document.getElementById('rotInputZ').value) || 0;
+      rotWarning.style.display = (x !== 0 || y !== 0 || z !== 0) ? 'block' : 'none';
+      updateModelTransform();
+      recenterView();
+      updateGrid();
+    }
+
+    // Blender-style Drag functionality for Inputs
+    function setupBlenderDrag(inputId, sensitivity, minVal, isRotation) {
+      const input = document.getElementById(inputId);
+      let isDragging = false;
+      let hasDragged = false;
+      let startX = 0;
+      let startVal = 0;
+
+      input.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        hasDragged = false;
+        startX = e.clientX;
+        startVal = parseFloat(input.value) || 0;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const delta = e.clientX - startX;
+        
+        if (Math.abs(delta) > 2) {
+          if (!hasDragged) {
+            hasDragged = true;
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+          }
+          let newVal = startVal + (delta * sensitivity);
+          if (minVal !== null && newVal < minVal) newVal = minVal;
+          input.value = isRotation ? Math.round(newVal) : newVal.toFixed(3);
+          input.dispatchEvent(new Event('input'));
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          if (hasDragged) {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            input.blur();
+          }
+        }
+      });
+    }
+
+    // Initialize Blender Drags
+    setupBlenderDrag('scaleInput', 0.01, 0.001, false);
+    setupBlenderDrag('dimInputX', 0.05, 0.001, false);
+    setupBlenderDrag('dimInputY', 0.05, 0.001, false);
+    setupBlenderDrag('dimInputZ', 0.05, 0.001, false);
+    setupBlenderDrag('rotInputX', 1, null, true);
+    setupBlenderDrag('rotInputY', 1, null, true);
+    setupBlenderDrag('rotInputZ', 1, null, true);
+
+    document.getElementById('rotInputX').addEventListener('input', updateModelRotation);
+    document.getElementById('rotInputY').addEventListener('input', updateModelRotation);
+    document.getElementById('rotInputZ').addEventListener('input', updateModelRotation);
+    document.getElementById('scaleInput').addEventListener('input', (e) => { const val = parseFloat(e.target.value); if (val > 0) updateModelScale(val, 'scale'); });
+    document.getElementById('dimInputX').addEventListener('input', (e) => { const base = unscaledModelSize.x * getConversionToInches(); if (base > 0) updateModelScale(parseFloat(e.target.value) / base, 'X'); });
+    document.getElementById('dimInputY').addEventListener('input', (e) => { const base = unscaledModelSize.y * getConversionToInches(); if (base > 0) updateModelScale(parseFloat(e.target.value) / base, 'Y'); });
+    document.getElementById('dimInputZ').addEventListener('input', (e) => { const base = unscaledModelSize.z * getConversionToInches(); if (base > 0) updateModelScale(parseFloat(e.target.value) / base, 'Z'); });
+
+    function updateOrthoFrustum() {
+      const aspect = viewport.clientWidth / viewport.clientHeight;
+      if (isNaN(aspect) || aspect <= 0) return;
+      recalculateBounds();
+      const baseSize = currentModel ? (modelRadius * 1.03) : 5;
+      if (aspect >= 1) {
+        cameraOrtho.top = baseSize; cameraOrtho.bottom = -baseSize; cameraOrtho.left = -baseSize * aspect; cameraOrtho.right = baseSize * aspect;
+      } else {
+        cameraOrtho.top = baseSize / aspect; cameraOrtho.bottom = -baseSize / aspect; cameraOrtho.left = -baseSize; cameraOrtho.right = baseSize;
+      }
+      cameraOrtho.updateProjectionMatrix();
+    }
+
+    function updateGrid() {
+      if (gridHelper) { scene.remove(gridHelper); gridHelper.geometry.dispose(); gridHelper = null; }
+      const showGrid = gridToggle.checked;
+      document.getElementById('gridNote').style.display = showGrid ? 'block' : 'none';
+      if (!showGrid || !currentModel) return;
+
+      const customGridInches = parseFloat(gridSizeInput.value) || 0.125;
+      const gridSpacingInUnits = customGridInches / getConversionToInches();
+      const maxDimUnits = Math.max(unscaledModelSize.x, unscaledModelSize.y, unscaledModelSize.z) * currentScaleFactor;
+      const numSquares = Math.max(Math.ceil((maxDimUnits * 2.5) / gridSpacingInUnits), 16);
+      
+      gridHelper = new THREE.GridHelper(numSquares * gridSpacingInUnits, numSquares, 0x38bdf8, 0x334155);
+      
+      if (document.getElementById('orthoToggle').checked) {
+        const camDir = new THREE.Vector3();
+        activeCamera.getWorldDirection(camDir);
+        gridHelper.position.copy(controls.target).add(camDir.clone().multiplyScalar(modelRadius * 1.5));
+        gridHelper.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), camDir.clone().negate());
+      } else {
+        const box = new THREE.Box3().setFromObject(currentModel);
+        gridHelper.position.set(0, box.min.y - (modelRadius * 0.02), 0);
+        gridHelper.quaternion.identity();
+      }
+      scene.add(gridHelper);
+      requestRender();
+    }
+
+    document.getElementById('orthoToggle').addEventListener('change', (e) => {
+      const isOrtho = e.target.checked;
+      if (isOrtho) {
+        cameraOrtho.position.copy(activeCamera.position);
+        cameraOrtho.quaternion.copy(activeCamera.quaternion);
+        activeCamera = cameraOrtho;
+        cameraOrtho.zoom = 1;
+        updateOrthoFrustum();
+        document.getElementById('focalContainer').style.display = 'none';
+      } else {
+        cameraPersp.position.copy(activeCamera.position);
+        cameraPersp.quaternion.copy(activeCamera.quaternion);
+        cameraPersp.updateProjectionMatrix();
+        activeCamera = cameraPersp;
+        document.getElementById('focalContainer').style.display = 'flex';
+      }
+      controls.object = activeCamera;
+      viewHelper.camera = activeCamera;
+      controls.update();
+      updateGrid();
+      updateLights(activeCamera);
+      requestRender(); // Ensure immediate visual update
+    });
+
+    document.getElementById('focalSlider').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      document.getElementById('focalVal').innerText = `${val}mm`;
+      cameraPersp.setFocalLength(val);
+      cameraPersp.updateProjectionMatrix();
+      requestRender();
+    });
+
+    document.getElementById('materialSelect').addEventListener('change', (e) => {
+      selectedMaterialKey = e.target.value;
+      applySelectedMaterial();
+    });
+
+    document.getElementById('lockLightsToggle').addEventListener('change', () => { updateLights(activeCamera); requestRender(); });
+
+    function snapView(dir) {
+      if (!currentModel) return;
+      recalculateBounds();
+      const dist = modelRadius * 3.0;
+      controls.target.set(0, 0, 0);
+
+      switch (dir) {
+        case 'front': activeCamera.position.set(0, 0, dist); break;
+        case 'back': activeCamera.position.set(0, 0, -dist); break;
+        case 'left': activeCamera.position.set(dist, 0, 0); break;
+        case 'right': activeCamera.position.set(-dist, 0, 0); break;
+        case 'top': activeCamera.position.set(0, dist, 0.0001); break;
+        case 'bottom': activeCamera.position.set(0, -dist, 0.0001); break;
+        case 'isofl': activeCamera.position.set(dist * 0.707, dist * 0.5, dist * 0.707); break;
+        case 'isofr': activeCamera.position.set(-dist * 0.707, dist * 0.5, dist * 0.707); break;
+      }
+      
+      activeCamera.lookAt(0, 0, 0);
+      cameraOrtho.zoom = 1;
+      if (document.getElementById('orthoToggle').checked) updateOrthoFrustum();
+      
+      controls.update();
+      updateGrid();
+      updateLights(activeCamera);
+      requestRender();
+    }
+
+    function recenterView() {
+      if (!currentModel) return;
+      recalculateBounds();
+      const dir = new THREE.Vector3().subVectors(activeCamera.position, controls.target).normalize();
+      if (dir.lengthSq() === 0) dir.set(0, 0, 1);
+
+      controls.target.set(0, 0, 0);
+      activeCamera.position.copy(dir.multiplyScalar(modelRadius * 3.0));
+      activeCamera.lookAt(0, 0, 0); // Explicitly recenter look-at target
+      
+      cameraOrtho.zoom = 1;
+
+      if (document.getElementById('orthoToggle').checked) {
+        updateOrthoFrustum();
+      } else {
+        cameraPersp.near = modelRadius / 1000;
+        cameraPersp.far = modelRadius * 100;
+        cameraPersp.updateProjectionMatrix();
+      }
+
+      controls.update();
+      updateGrid();
+      updateLights(activeCamera);
+      requestRender();
+    }
+
+    document.getElementById('btnFront').onclick = () => snapView('front');
+    document.getElementById('btnBack').onclick = () => snapView('back');
+    document.getElementById('btnLeft').onclick = () => snapView('left');
+    document.getElementById('btnRight').onclick = () => snapView('right');
+    document.getElementById('btnTop').onclick = () => snapView('top');
+    document.getElementById('btnBottom').onclick = () => snapView('bottom');
+    document.getElementById('btnIsoFL').onclick = () => snapView('isofl');
+    document.getElementById('btnIsoFR').onclick = () => snapView('isofr');
+    document.getElementById('btnRecenter').onclick = () => recenterView();
+
+    // Hotkeys
+    window.addEventListener('keydown', (e) => {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+      const key = e.key.toLowerCase();
+      if (e.code === 'KeyF') {
+        e.preventDefault();
+        setFullscreenMode(!isFullscreenMode);
+      } else if (e.code === 'Escape') {
+        if (isFullscreenMode) setFullscreenMode(false);
+      } else if (e.code === 'Space') {
+        e.preventDefault();
+        btnTurntable.click();
+      } else if (e.key === '1') {
+        snapView('front');
+      } else if (e.key === '2') {
+        snapView('back');
+      } else if (e.key === '3') {
+        snapView('left');
+      } else if (e.key === '4') {
+        snapView('right');
+      } else if (e.key === '5') {
+        snapView('top');
+      } else if (e.key === '6') {
+        snapView('bottom');
+      } else if (e.key === '7') {
+        snapView('isofl');
+      } else if (e.key === '8') {
+        snapView('isofr');
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        recenterView();
+      } else if (key === 's') {
+        document.getElementById('btnExportTurns').click();
+      } else if (key === 'v') {
+        document.getElementById('btnExportMp4').click();
+      } else if (key === 'w') {
+        document.getElementById('btnExportWebm').click();
+      } else if (key === 'c') {
+        document.getElementById('shadowToggle').click();
+      } else if (key === 'l') {
+        document.getElementById('lockLightsToggle').click();
+      } else if (key === 'g') {
+        gridToggle.click();
+      } else if (key === 'o') {
+        document.getElementById('orthoToggle').click();
+      }
+    });
+
+    // 100% Non-Blocking Chunked Turnaround Image Exporter 
+    document.getElementById('btnExportTurns').onclick = () => {
+      if (!currentModel) {
+        alert("Please upload a .GLB, .STL, or .OBJ model first before exporting.");
+        return;
+      }
+      if (isRecordingVideo || isExportingImages) return;
+
+      isExportingImages = true; // Pauses animate loop to prevent gizmo overlap
+      controls.enabled = false;
+
+      const exportBtn = document.getElementById('btnExportTurns');
+      const origBtnText = exportBtn.innerText;
+      exportBtn.disabled = true;
+
+      recalculateBounds();
+      const includeGrid = gridToggle.checked;
+      const resMult = Math.min(Math.max(parseInt(document.getElementById('exportResSelect').value) || 1, 1), 4);
+      
+      const basePanelSize = 1000;
+      let panelSize = basePanelSize * resMult;
+
+      // Query hardware WebGL viewport limit to guarantee zero GPU clipping
+      const gl = renderer.getContext();
+      const maxHardwareDim = gl ? (gl.getParameter(gl.MAX_VIEWPORT_DIMS)?.[0] || 4096) : 4096;
+      panelSize = Math.min(panelSize, maxHardwareDim);
+
+      const margin = 20 * resMult;
+      const gap = 20 * resMult;
+      const headerHeight = 180 * resMult;
+      const labelHeight = 60 * resMult;
+      const cols = 4;
+      const rows = 2;
+
+      const totalWidth = (margin * 2) + (cols * panelSize) + ((cols - 1) * gap);
+      const totalHeight = margin + headerHeight + (rows * (panelSize + labelHeight)) + ((rows - 1) * gap) + margin;
+
+      const compCanvas = document.createElement('canvas');
+      compCanvas.width = totalWidth;
+      compCanvas.height = totalHeight;
+      const ctx = compCanvas.getContext('2d');
+
+      ctx.clearRect(0, 0, totalWidth, totalHeight);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = `bold ${52 * resMult}px system-ui, sans-serif`;
+      ctx.fillText('3D MODEL ORTHOGRAPHIC TURNAROUND SHEET', margin + (20 * resMult), margin + (65 * resMult));
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = `${32 * resMult}px system-ui, sans-serif`;
+      const scaleInches = getConversionToInches();
+      const inX = (unscaledModelSize.x * scaleInches * currentScaleFactor).toFixed(3);
+      const inY = (unscaledModelSize.y * scaleInches * currentScaleFactor).toFixed(3);
+      const inZ = (unscaledModelSize.z * scaleInches * currentScaleFactor).toFixed(3);
+      const dimStr = `File: ${loadedFileName}  |  Size: X ${inX}" × Y ${inY}" × Z ${inZ}"  |  Scale: ${currentScaleFactor.toFixed(3)}x`;
+      ctx.fillText(dimStr, margin + (20 * resMult), margin + (125 * resMult));
+
+      const origWidth = viewport.clientWidth;
+      const origHeight = viewport.clientHeight;
+
+      const dist = modelRadius * 3.0;
+      const halfFrustum = modelRadius * 1.03;
+      const exportCam = new THREE.OrthographicCamera(-halfFrustum, halfFrustum, halfFrustum, -halfFrustum, 0.01, dist * 10);
+
+      const origSceneBg = scene.background;
+      scene.background = null; // Transparent background for PNG
+
+      renderer.setClearColor(0x000000, 0);
+      renderer.setSize(panelSize, panelSize, true);
+
+      const views = [
+        { name: 'FRONT VIEW', pos: new THREE.Vector3(0, 0, dist) },
+        { name: 'BACK VIEW', pos: new THREE.Vector3(0, 0, -dist) },
+        { name: 'TOP VIEW', pos: new THREE.Vector3(0, dist, 0.0001) },
+        { name: 'BOTTOM VIEW', pos: new THREE.Vector3(0, -dist, 0.0001) },
+        { name: 'LEFT VIEW', pos: new THREE.Vector3(dist, 0, 0) },
+        { name: 'RIGHT VIEW', pos: new THREE.Vector3(-dist, 0, 0) },
+        { name: '3/4 FRONT-LEFT', pos: new THREE.Vector3(dist * 0.707, dist * 0.5, dist * 0.707) },
+        { name: '3/4 FRONT-RIGHT', pos: new THREE.Vector3(-dist * 0.707, dist * 0.5, dist * 0.707) }
+      ];
+
+      let currentViewIdx = 0;
+
+      function renderNextExportChunk() {
+        if (currentViewIdx >= views.length) {
+          
+          // Finalize Export
+          scene.background = currentBgColor;
+          renderer.setSize(origWidth, origHeight, true);
+          updateGrid();
+          updateLights(activeCamera);
+          
+          isExportingImages = false;
+          controls.enabled = true;
+          requestRender();
+
+          compCanvas.toBlob((blob) => {
+            const link = document.createElement('a');
+            const cleanName = loadedFileName.replace(/\.[^/.]+$/, "");
+            link.download = `${cleanName}_Turnaround_${resMult}x.png`;
+            link.href = URL.createObjectURL(blob);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            
+            exportBtn.innerText = origBtnText;
+            exportBtn.disabled = false;
+          }, 'image/png');
+          return;
+        }
+
+        exportBtn.innerText = `Rendering (${currentViewIdx + 1}/8)...`;
+
+        const v = views[currentViewIdx];
+        exportCam.position.copy(v.pos);
+        exportCam.lookAt(0, 0, 0);
+        exportCam.updateProjectionMatrix();
+
+        updateLights(exportCam);
+
+        if (includeGrid) {
+          if (!gridHelper) updateGrid();
+          if (gridHelper) {
+            gridHelper.visible = true;
+            const camDir = v.pos.clone().negate().normalize();
+            const offset = camDir.clone().multiplyScalar(modelRadius * 1.5);
+            gridHelper.position.copy(offset);
+            gridHelper.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), camDir.clone().negate());
+          }
+        } else if (gridHelper) {
+          gridHelper.visible = false;
+        }
+
+        // Fixes image ghosting logic when background is transparent
+        renderer.clear(); 
+        renderer.render(scene, exportCam);
+        
+        // Notice we do NOT render the Vignette in the Image Exporter
+
+        const col = currentViewIdx % cols;
+        const row = Math.floor(currentViewIdx / cols);
+
+        const dx = margin + col * (panelSize + gap);
+        const dy = margin + headerHeight + row * (panelSize + labelHeight + gap);
+
+        ctx.drawImage(renderer.domElement, dx, dy, panelSize, panelSize);
+
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 3 * resMult;
+        ctx.strokeRect(dx, dy, panelSize, panelSize);
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = `bold ${38 * resMult}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(v.name, dx + (panelSize / 2), dy + panelSize + (45 * resMult));
+
+        currentViewIdx++;
+        
+        requestAnimationFrame(renderNextExportChunk);
+      }
+
+      requestAnimationFrame(renderNextExportChunk);
+    };
+
+    // Video Extractor Logic 
+    function getSupportedVideoMimeType(format) {
+      if (format === 'mp4') {
+        const mp4Candidates = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4;codecs=h264', 'video/mp4'];
+        for (const type of mp4Candidates) if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) return type;
+        const fallbackCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        for (const type of fallbackCandidates) if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) return type;
+      } else {
+        const webmCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        for (const type of webmCandidates) if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) return type;
+      }
+      return '';
+    }
+
+    // Encoder Probe to verify non-zero byte generation before recording
+    function testCanvasRecording(type) {
+      return new Promise((resolve) => {
+        try {
+          const stream = canvas.captureStream(30);
+          const testRecorder = new MediaRecorder(stream, { mimeType: type });
+          let hasData = false;
+
+          testRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) {
+              hasData = true;
+            }
+          };
+
+          testRecorder.onstop = () => resolve(hasData);
+          testRecorder.onerror = () => resolve(false);
+
+          testRecorder.start(50);
+          
+          renderer.clear();
+          renderer.render(scene, activeCamera);
+          if (vignetteEnabled) renderer.render(vignetteScene, vignetteCamera);
+
+          setTimeout(() => {
+            try {
+              if (testRecorder.state !== 'inactive') {
+                testRecorder.stop();
+              } else {
+                resolve(hasData);
+              }
+            } catch (e) {
+              resolve(false);
+            }
+          }, 150);
+        } catch (e) {
+          resolve(false);
+        }
+      });
+    }
+
+    // Synchronized Video Exporter (MP4 Priority with Bitrate & Clean Probe Fallback)
+    async function startVideoExport(format) {
+      if (!currentModel) {
+        alert("Please upload a .GLB, .STL, or .OBJ model first before exporting.");
+        return;
+      }
+      if (isRecordingVideo || isExportingImages) return;
+
+      const btnMp4 = document.getElementById('btnExportMp4');
+      const btnWebm = document.getElementById('btnExportWebm');
+      const activeBtn = format === 'mp4' ? btnMp4 : btnWebm;
+      const origText = activeBtn.innerText;
+      
+      btnMp4.disabled = true;
+      btnWebm.disabled = true;
+      activeBtn.innerText = "Testing Encoder...";
+
+      const wasTurntable = isTurntableActive;
+      isTurntableActive = false;
+      controls.enabled = false;
+      isRecordingVideo = true; // Pause main background animate loop
+
+      try {
+        recalculateBounds();
+
+        let selectedMimeType = getSupportedVideoMimeType(format);
+        if (!selectedMimeType) {
+          throw new Error("Video recording is not supported in this browser environment.");
+        }
+
+        const works = await testCanvasRecording(selectedMimeType);
+        if (!works && format === 'mp4') {
+             selectedMimeType = getSupportedVideoMimeType('webm');
+        }
+
+        activeBtn.innerText = "Generating Video...";
+
+        const stream = canvas.captureStream(30);
+        let recorder;
+        try {
+            recorder = new MediaRecorder(stream, { 
+              mimeType: selectedMimeType, 
+              videoBitsPerSecond: 30000000 
+            });
+        } catch(e) {
+            recorder = new MediaRecorder(stream);
+        }
+        
+        const chunks = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunks.push(e.data);
+          }
+        };
+
+        const recordPromise = new Promise((resolve, reject) => {
+          recorder.onstop = () => {
+            try {
+              const blob = new Blob(chunks, { type: selectedMimeType });
+              if (blob.size === 0) {
+                reject(new Error("Video recording resulted in an empty file (0 bytes)."));
+                return;
+              }
+              const isMp4 = selectedMimeType.includes('mp4');
+              const ext = isMp4 ? 'mp4' : 'webm';
+              const cleanName = loadedFileName.replace(/\.[^/.]+$/, "");
+              const url = URL.createObjectURL(blob);
+              
+              const link = document.createElement('a');
+              link.style.display = 'none';
+              link.href = url;
+              link.download = `${cleanName}_Turnaround.${ext}`;
+              document.body.appendChild(link);
+              link.click();
+              
+              setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+              }, 1000);
+              
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          };
+          recorder.onerror = (e) => reject(e.error || new Error("MediaRecorder encountered an error."));
+        });
+
+        // Request chunks every 100ms
+        recorder.start(100);
+
+        const durationMs = 4000; // 4 second 360-degree rotation
+        const radius = Math.sqrt(activeCamera.position.x**2 + activeCamera.position.z**2) || (modelRadius * 3.0);
+        const camY = activeCamera.position.y;
+        const initialAngle = Math.atan2(activeCamera.position.x, activeCamera.position.z);
+        const startTime = performance.now();
+
+        await new Promise((resolve) => {
+          function renderStep(now) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / durationMs, 1.0);
+            const angle = initialAngle + (progress * Math.PI * 2);
+
+            activeCamera.position.x = radius * Math.sin(angle);
+            activeCamera.position.z = radius * Math.cos(angle);
+            activeCamera.position.y = camY;
+            activeCamera.lookAt(controls.target);
+
+            updateLights(activeCamera);
+
+            if (document.getElementById('orthoToggle').checked && gridToggle.checked) {
+              updateGrid();
+            }
+
+            renderer.clear();
+            renderer.render(scene, activeCamera);
+            if (vignetteEnabled) renderer.render(vignetteScene, vignetteCamera);
+
+            if (progress < 1.0) {
+              requestAnimationFrame(renderStep);
+            } else {
+              resolve();
+            }
+          }
+          requestAnimationFrame(renderStep);
+        });
+
+        await new Promise((r) => setTimeout(r, 150));
+
+        if (recorder.state !== 'inactive') {
+          recorder.stop();
+        }
+
+        await recordPromise;
+
+      } catch (err) {
+        console.error("Video export error:", err);
+        alert(`Video Export Error: ${err.message || err}`);
+      } finally {
+        isRecordingVideo = false; // Resume main animate loop
+        controls.enabled = true;
+        isTurntableActive = wasTurntable;
+        if (document.getElementById('orthoToggle').checked && gridToggle.checked) {
+          updateGrid();
+        }
+        updateLights(activeCamera);
+
+        activeBtn.innerText = origText;
+        btnMp4.disabled = false;
+        btnWebm.disabled = false;
+        requestRender();
+      }
+    }
+
+    document.getElementById('btnExportMp4').onclick = () => startVideoExport('mp4');
+    document.getElementById('btnExportWebm').onclick = () => startVideoExport('webm');
+
+
+    function handleResize() {
+      const w = viewport.clientWidth;
+      const h = viewport.clientHeight;
+      if (w === 0 || h === 0) return;
+
+      const newAspect = w / h;
+
+      cameraPersp.aspect = newAspect;
+      cameraPersp.updateProjectionMatrix();
+
+      updateOrthoFrustum();
+
+      renderer.setSize(w, h, true);
+      
+      if (currentModel) {
+        updateGrid();
+        updateLights(activeCamera);
+      }
+      requestRender();
+    }
+
+    // Continuous ResizeObserver for seamless viewport layout updates
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(viewport);
+
+    // Main Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+
+      if (isRecordingVideo || isExportingImages) return; // Skip main loop during active media export
+
+      let cameraMoved = controls.update();
+
+      if (isTurntableActive) {
+        const speed = 0.008;
+        const x = activeCamera.position.x;
+        const z = activeCamera.position.z;
+        activeCamera.position.x = x * Math.cos(speed) - z * Math.sin(speed);
+        activeCamera.position.z = x * Math.sin(speed) + z * Math.cos(speed);
+        activeCamera.lookAt(controls.target);
+
+        if (document.getElementById('orthoToggle').checked && gridToggle.checked) {
+          updateGrid();
+        }
+        needsRender = true;
+      }
+
+      if (needsRender || cameraMoved) {
+        updateLights(activeCamera);
+        renderer.clear(); // Required when autoClear is false!
+        renderer.render(scene, activeCamera);
+        
+        if (vignetteEnabled) {
+            renderer.render(vignetteScene, vignetteCamera);
+        }
+
+        renderer.clearDepth();
+        viewHelper.render(renderer);
+        needsRender = false;
+      }
+    }
+    
+    animate();
+  </script>
+</body>
+</html>
